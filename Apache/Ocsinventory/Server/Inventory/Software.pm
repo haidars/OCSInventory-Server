@@ -76,6 +76,10 @@ sub _insert_software_categories_link {
     push @argInsert, $category;
 
     $result = _prepare_sql($sql, @argInsert);
+    if(!defined $result){
+        sleep 3;
+        $result = _prepare_sql($sql, @argInsert);
+    }
     if(!defined $result) { return undef; }
 
     return $result;
@@ -93,6 +97,10 @@ sub _get_info_software {
     $sql = "SELECT ID FROM $table WHERE $column = ?";
     push @argVerif, $value;
     $resultVerif = _prepare_sql($sql, @argVerif);
+    if(!defined $resultVerif) {
+        sleep 3;
+        $resultVerif = _prepare_sql($sql, @argVerif);
+    }
     if(!defined $resultVerif) { return undef; }
 
     while(my $row = $resultVerif->fetchrow_hashref()){
@@ -107,6 +115,10 @@ sub _get_info_software {
         push @argInsert, $value;
 
         $result = _prepare_sql($sql, @argInsert);
+        if(!defined $result) {
+            sleep 3;
+            $result = _prepare_sql($sql, @argInsert);
+        }
         if(!defined $result) { return undef; }
 
         # Get last Insert or Update ID
@@ -114,6 +126,10 @@ sub _get_info_software {
         $sql = "SELECT ID FROM $table WHERE $column = ?";
         push @argSelect, $value;
         $result = _prepare_sql($sql, @argSelect);
+        if(!defined $result) { 
+            sleep 3;
+            $result = _prepare_sql($sql, @argSelect);
+        }
         if(!defined $result) { return undef; }
 
         while(my $row = $result->fetchrow_hashref()){
@@ -133,6 +149,10 @@ sub _del_all_soft {
     $sql = "DELETE FROM software WHERE HARDWARE_ID = ?";
     push @arg, $hardware_id;
     $result = _prepare_sql($sql, @arg);
+    if(!defined $result) { 
+        sleep 3;
+        $result = _prepare_sql($sql, @arg);
+    }
     if(!defined $result) { return 1; }
 
     return 0;
@@ -149,6 +169,10 @@ sub _del_category_soft {
     push @arg, $publisher;
     push @arg, $version;
     $result = _prepare_sql($sql, @arg);
+    if(!defined $result) {
+        sleep 3;
+        $result = _prepare_sql($sql, @arg);
+    }
     if(!defined $result) { return 1; }
 
     return 0;
@@ -164,6 +188,12 @@ sub _trim_value {
 
 sub _insert_software {
     my $sql;
+    my $size;
+    my $fdate;
+    my $workdate;
+    my @arrayinfo;
+    my $tmp_month;
+    my $tmp_day;
     my $hardware_id = $Apache::Ocsinventory::CURRENT_CONTEXT{'DATABASE_ID'};
     my @arrayRef = ('HARDWARE_ID', 'NAME_ID', 
                     'PUBLISHER_ID', 'VERSION_ID', 
@@ -175,6 +205,46 @@ sub _insert_software {
 
     foreach my $software (@{$Apache::Ocsinventory::CURRENT_CONTEXT{'XML_ENTRY'}->{CONTENT}->{SOFTWARES}}) {
 
+         if( defined $software->{INSTALLDATE} && $software->{INSTALLDATE} !~ /^\d{4}\/\d\d\/\d\d/ ) {
+             # just a test of ema
+             $workdate = $software->{INSTALLDATE};
+            if( $workdate =~ /^\d{2}\/\d{2}\/\d{4}/ ) {
+  	             $size = length( $workdate );
+                  if( $size == 10 ) {
+                    print "trace on software $workdate * $software->{INSTALLDATE}";
+                     $workdate =~ m/^(\d{2})\/(\d{2})\/(\d{4})$/;
+                     $fdate = "$3/$2/$1";
+                     $fdate = $fdate." 00:00:00";
+                  } else {
+                        print "trace on software $workdate * $software->{INSTALLDATE}";
+                        $workdate =~ m/^(\d{2})\/(\d{2})\/(\d{4})$.*/;
+                        $fdate = "$3/$2/$1";
+                        $fdate = $fdate." ".(split " ",$workdate)[-1];
+                         }
+                $software->{INSTALLDATE} = $fdate;
+            } elsif( $workdate eq "0000//0/0/00" ) {
+
+                    $software->{INSTALLDATE} = "1975/01/01 00:00:00"; 
+
+            } else {
+                        my @arrayinfo = ( split '/',$workdate);
+                        if((scalar @arrayinfo) == 3){
+                            $tmp_month = $arrayinfo[0];
+                                if(length($tmp_month) < 2){
+                                    $tmp_month ='0'.$tmp_month;
+                                }
+                            my $tmp_day = $arrayinfo[1];
+                                if(length($tmp_day) < 2){
+                                    $tmp_day ='0'.$tmp_day;
+                                }
+                            $software->{INSTALLDATE} = $arrayinfo[2]."/".$tmp_month."/".$tmp_day." 00:00:00";
+                        }
+                    }
+            if( $workdate =~ /^\d{4}-\d{2}-\d{2}/ ) {
+                $workdate =~ s/-/\//g;
+                $software->{INSTALLDATE} = $workdate;
+            }                   
+        }
         # Check install date format
         if(!defined $software->{INSTALLDATE} || $software->{INSTALLDATE} !~ /^\d{4}\/\d\d\/\d\d/ && $software->{INSTALLDATE} !~ /[1-9]{1}[0-9]{3}\/[0-9]{2}\/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/) {
             $software->{INSTALLDATE} = strftime "%Y/%m/%d", localtime;
@@ -238,6 +308,10 @@ sub _insert_software {
         $sql = "INSERT INTO software ($arrayRefString) VALUES(";
         $sql .= (join ',', @bind_num).') ';
         my $result = _prepare_sql($sql, @arg);
+        if(!defined $result) {
+            sleep 3;
+            my $result = _prepare_sql($sql, @arg);
+        }
         if(!defined $result) { return 1; }
 
         # Delete software from software categories link
